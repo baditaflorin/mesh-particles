@@ -7,6 +7,7 @@ This app is a peer-to-peer mesh. Any data that is shared via Yjs (the CRDT) or a
 ### What other peers can see
 
 - All Yjs CRDT state: every item, vote, edit, claim, message — whatever the app stores in shared Y.Map / Y.Array structures.
+- Any opted-in cue frame shared from this app, up to 800 KB per image and 12 displayed frames per rehearsal roll. Every participant in the room can reconstruct and download those images.
 - Per-peer awareness state: ephemeral presence info (cursor, mood, ms-precision clock pings) for the duration of the connection.
 - Your peer ID, a transient WebRTC client ID. Not tied to a user account.
 
@@ -23,8 +24,11 @@ This app is a peer-to-peer mesh. Any data that is shared via Yjs (the CRDT) or a
 ## Capabilities used by this app
 
 <!-- mesh:capabilities-block:start -->
+
 - 🔦 **Camera torch toggle** — needs camera permission; not transmitted.
+- 📷 **Rear camera frame** — requested only after arming and photo participation; a frame is sent to peers only when the operator also enables room sharing.
 - 💡 **Screen wake lock** — output only.
+
 <!-- mesh:capabilities-block:end -->
 
 ## No accounts, no analytics

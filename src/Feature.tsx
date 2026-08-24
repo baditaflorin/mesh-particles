@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  createClockSync,
+  useFileShare,
   useFlashlight,
   useFullscreen,
   useImageCapture,
@@ -13,6 +13,10 @@ import {
 
 type ParticlesCue = { torch: boolean; capture: boolean; durationMs: number };
 type Props = { room: YRoom | null; config: MeshConfig };
+type GalleryImage = { id: string; name: string; url: string; mine: boolean };
+
+const MAX_SHARED_PHOTOS = 12;
+const MAX_SHARED_BYTES = 800 * 1024;
 
 const isParticlesCue = (value: unknown): value is ParticlesCue => {
   if (typeof value !== "object" || value === null) return false;
@@ -27,21 +31,28 @@ const isParticlesCue = (value: unknown): value is ParticlesCue => {
   );
 };
 
-/** Rehearsal-scale installation client. It intentionally stays screen-first. */
+function cueFilename(id: string, peerId: string) {
+  return `particles-${id.slice(0, 8)}-${peerId.slice(0, 12)}.jpg`;
+}
+
+/** Mobile-first, small-room rehearsal client. A 50–200 device show needs a relay. */
 export function Feature({ room, config }: Props) {
   const [armed, setArmed] = useState(false);
   const [captureEnabled, setCaptureEnabled] = useState(false);
+  const [shareEnabled, setShareEnabled] = useState(true);
   const [torchEnabled, setTorchEnabled] = useState(true);
+  const [delaySeconds, setDelaySeconds] = useState(5);
   const [flashing, setFlashing] = useState(false);
-  const [lastShot, setLastShot] = useState<string | null>(null);
-  const [notice, setNotice] = useState("Arm this device before the rehearsal.");
+  const [notice, setNotice] = useState("Arm this phone to join the rehearsal.");
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const stageRef = useRef<HTMLElement | null>(null);
   const firedCue = useRef<string | null>(null);
   const timers = useRef<number[]>([]);
+  const capabilitySignature = useRef("");
+  const galleryUrls = useRef(new Map<string, string>());
 
-  const clock = useMemo(() => createClockSync(room?.provider ?? null), [room?.provider]);
-  useEffect(() => () => clock.destroy(), [clock]);
   useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
+  useEffect(() => () => galleryUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   const camera = useImageCapture({
     armed: armed && captureEnabled,
@@ -53,22 +64,106 @@ export function Feature({ room, config }: Props) {
   const wakeLock = useWakeLock();
   const fullscreen = useFullscreen(stageRef);
   const capabilities = usePeerCapabilities(room);
-  const cue = useScheduledCue(room, "particles:cue", {
-    clock,
-    minLeadMs: 2_500,
-    maxLeadMs: 15_000,
+  const photoShare = useFileShare(room, {
+    mapName: "particles:photos:v1",
+    maxBytes: MAX_SHARED_BYTES,
+    yieldEveryChunks: 4,
+  });
+  const cue = useScheduledCue(room, "particles:cue:v2", {
+    // The old awareness-median clock could move after writing a cue and change its deadline.
+    minLeadMs: 1_000,
+    maxLeadMs: 30_000,
     graceMs: 2_000,
     tickMs: 25,
     isPayload: isParticlesCue,
   });
 
   useEffect(() => {
-    capabilities.setMine({
+    const next = {
       screen: armed,
       camera: armed && captureEnabled && camera.ready,
       torch: armed && torchEnabled && torch.supported,
-    });
+    };
+    const signature = JSON.stringify(next);
+    if (capabilitySignature.current === signature) return;
+    capabilitySignature.current = signature;
+    capabilities.setMine(next);
   }, [armed, camera.ready, capabilities, captureEnabled, torch.supported, torchEnabled]);
+
+  useEffect(() => {
+    let active = true;
+    const completeFiles = photoShare.files
+      .filter((file) => file.complete)
+      .slice(-MAX_SHARED_PHOTOS)
+      .reverse();
+    void Promise.all(
+      completeFiles.map(async (file) => {
+        let url = galleryUrls.current.get(file.id);
+        if (!url) {
+          const blob = await photoShare.blobOf(file.id);
+          if (!blob) return null;
+          url = URL.createObjectURL(blob);
+          galleryUrls.current.set(file.id, url);
+        }
+        return {
+          id: file.id,
+          name: file.manifest.name,
+          url,
+          mine: file.manifest.by === room?.peerId,
+        } satisfies GalleryImage;
+      }),
+    ).then((items) => {
+      if (!active) return;
+      const next = items.filter((item): item is GalleryImage => item !== null);
+      const included = new Set(next.map((item) => item.id));
+      galleryUrls.current.forEach((url, id) => {
+        if (!included.has(id)) {
+          URL.revokeObjectURL(url);
+          galleryUrls.current.delete(id);
+        }
+      });
+      setGallery(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [photoShare, room?.peerId]);
+
+  const captureForCue = async (event: NonNullable<typeof cue.cue>) => {
+    if (!event.payload.capture || !captureEnabled) return;
+    const image = await camera.captureBlob(0.5);
+    if (!image) {
+      setNotice(camera.error ?? "This phone could not capture a camera frame.");
+      return;
+    }
+    if (!shareEnabled) {
+      const id = `local-${event.id}`;
+      const url = URL.createObjectURL(image.blob);
+      galleryUrls.current.set(id, url);
+      setGallery((previous) =>
+        [
+          { id, name: "Local frame", url, mine: true },
+          ...previous.filter((photo) => photo.id !== id),
+        ].slice(0, MAX_SHARED_PHOTOS),
+      );
+      setNotice("Frame captured only on this phone.");
+      return;
+    }
+    if (photoShare.files.length >= MAX_SHARED_PHOTOS) {
+      setNotice(`Frame not shared: this rehearsal roll already has ${MAX_SHARED_PHOTOS} photos.`);
+      return;
+    }
+    try {
+      await photoShare.send(image.blob, {
+        name: cueFilename(event.id, room?.peerId ?? "local"),
+        id: `${event.id}:${room?.peerId ?? "local"}`,
+      });
+      setNotice("Frame captured and shared with this rehearsal room.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setNotice(`Frame captured, but sharing failed: ${message}`);
+    }
+  };
 
   useEffect(() => {
     if (cue.state !== "due" || !cue.cue || firedCue.current === cue.cue.id) return;
@@ -76,12 +171,9 @@ export function Feature({ room, config }: Props) {
     const event = cue.cue;
     const canTorch = event.payload.torch && torchEnabled && torch.supported;
     setFlashing(true);
-    setNotice(`Cue fired · ${cue.latenessMs ?? 0}ms local arrival.`);
+    setNotice(`Cue fired · ${cue.latenessMs ?? 0} ms late on this phone.`);
     if (canTorch) void torch.setOn(true);
-    if (event.payload.capture && captureEnabled) {
-      const image = camera.capture(0.7);
-      if (image) setLastShot(image.dataUrl);
-    }
+    void captureForCue(event);
     timers.current.push(
       window.setTimeout(() => {
         setFlashing(false);
@@ -94,6 +186,7 @@ export function Feature({ room, config }: Props) {
     cue.cue,
     cue.latenessMs,
     cue.state,
+    shareEnabled,
     torch,
     torch.supported,
     torchEnabled,
@@ -101,28 +194,28 @@ export function Feature({ room, config }: Props) {
 
   const arm = async () => {
     setArmed(true);
-    setNotice("Armed. Screen flash is ready; camera and torch remain opt-in.");
+    setNotice("Armed. Use Camera participation only after agreeing to share each capture.");
     if (wakeLock.supported) await wakeLock.acquire();
   };
 
-  const schedule = (delayMs: number) => {
+  const schedule = (capture: boolean) => {
     if (!armed) {
-      setNotice("Arm this device first.");
+      setNotice("Arm this phone first.");
       return;
     }
-    const ok = cue.scheduleIn(
-      {
-        torch: torchEnabled && torch.supported,
-        capture: captureEnabled && camera.ready,
-        durationMs: 180,
-      },
-      delayMs,
-    );
-    setNotice(
-      ok
-        ? `Cue scheduled in ${(delayMs / 1000).toFixed(1)} seconds.`
-        : "Cue could not be scheduled. Check the room connection.",
-    );
+    try {
+      const ok = cue.scheduleIn(
+        { torch: torchEnabled && torch.supported, capture, durationMs: 160 },
+        delaySeconds * 1_000,
+      );
+      setNotice(
+        ok
+          ? `Cue locked for ${delaySeconds.toFixed(1)} seconds from now.`
+          : "Cue could not be scheduled. Check the room connection and try again.",
+      );
+    } catch (error) {
+      setNotice(`Cue error: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const peerCapabilities = [...capabilities.peers.values()];
@@ -132,37 +225,28 @@ export function Feature({ room, config }: Props) {
   const torchReady =
     peerCapabilities.filter((peer) => peer.torch).length +
     Number(armed && torchEnabled && torch.supported);
+  const present = room ? room.peerCount + 1 : 1;
+  const displayedGallery = useMemo(() => gallery.slice(0, MAX_SHARED_PHOTOS), [gallery]);
 
   return (
     <main ref={stageRef} className={`particles-stage ${flashing ? "is-flashing" : ""}`}>
       <div className="particles-flash" aria-hidden="true" />
-      <section className="particles-hero" aria-labelledby="particles-title">
-        <p className="particles-kicker">Installation rehearsal · screen-first</p>
-        <h1 id="particles-title">{config.appName}</h1>
-        <p className="particles-intro">
-          One shared light cue, many held phones. The white screen is the dependable collective
-          flash; rear-camera capture and torch are explicitly opted into per device.
-        </p>
-      </section>
-
-      <section className="particles-panel" aria-label="Installation controls">
-        <div className="particles-stats">
-          <span>
-            <strong>{room ? room.peerCount + 1 : 1}</strong> phones present
-          </span>
-          <span>
-            <strong>{cameraReady}</strong> cameras ready
-          </span>
-          <span>
-            <strong>{torchReady}</strong> torches available
-          </span>
+      <header className="particles-topbar">
+        <div>
+          <p className="particles-kicker">Shared light / photo moment</p>
+          <h1 id="particles-title">{config.appName}</h1>
         </div>
+        <span className="particles-room" aria-label={`${present} phones present`}>
+          <b>{present}</b> present
+        </span>
+      </header>
 
+      <section className="particles-console" aria-labelledby="particles-title">
         {!armed ? (
           <div className="particles-arm">
             <p>
-              One visible burst only. Do not use for repeated strobing; place every phone on power
-              before a field rehearsal.
+              A single white-screen burst, synchronized for a small rehearsal. Each phone chooses
+              whether it participates with its camera.
             </p>
             <button type="button" className="particles-primary" onClick={() => void arm()}>
               Arm this phone
@@ -170,91 +254,144 @@ export function Feature({ room, config }: Props) {
           </div>
         ) : (
           <>
-            <div className="particles-options">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={captureEnabled}
-                  onChange={(event) => setCaptureEnabled(event.target.checked)}
-                />
-                Capture a local rear-camera frame at the cue
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={torchEnabled}
-                  onChange={(event) => setTorchEnabled(event.target.checked)}
-                />
-                Add hardware torch when this device supports it
-              </label>
+            <div className="particles-readiness" aria-label="Room readiness">
+              <span>
+                <b>{cameraReady}</b> camera-ready
+              </span>
+              <span>
+                <b>{torchReady}</b> torch-ready
+              </span>
+              <span>
+                <b>{displayedGallery.length}</b> shared frames
+              </span>
             </div>
-            {captureEnabled && (
-              <div className="particles-camera">
-                <video ref={camera.videoRef} playsInline muted aria-label="Rear camera preview" />
-                <p>
-                  {camera.ready
-                    ? "Camera ready. The capture stays local on this phone."
-                    : (camera.error ??
-                      "Allow rear-camera access to include this phone in the capture.")}
-                </p>
+            <div className="particles-controls">
+              <label className="particles-range">
+                <span>Moment in</span>
+                <output>{delaySeconds.toFixed(1)} s</output>
+                <input
+                  type="range"
+                  min="1"
+                  max="30"
+                  step="0.5"
+                  value={delaySeconds}
+                  aria-label="Moment in"
+                  onChange={(event) => setDelaySeconds(Number(event.target.value))}
+                />
+              </label>
+              <div className="particles-toggles">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={captureEnabled}
+                    onChange={(event) => setCaptureEnabled(event.target.checked)}
+                  />
+                  This phone takes a photo
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={captureEnabled && shareEnabled}
+                    disabled={!captureEnabled}
+                    onChange={(event) => setShareEnabled(event.target.checked)}
+                  />
+                  Share it with the room
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={torchEnabled}
+                    onChange={(event) => setTorchEnabled(event.target.checked)}
+                  />
+                  Use torch if available
+                </label>
               </div>
-            )}
+            </div>
             <div className="particles-actions">
               <button
                 type="button"
                 className="particles-secondary"
-                onClick={() => schedule(2_500)}
+                onClick={() => schedule(false)}
                 disabled={cue.state === "scheduled"}
               >
-                Test cue · 2.5 s
+                Test light
               </button>
               <button
                 type="button"
                 className="particles-primary"
-                onClick={() => schedule(5_000)}
+                onClick={() => schedule(true)}
                 disabled={cue.state === "scheduled"}
               >
-                Trigger moment · 5 s
+                Trigger moment
               </button>
               <button
                 type="button"
-                className="particles-secondary"
+                className="particles-icon-button"
                 onClick={() => void fullscreen.toggle()}
+                aria-label={fullscreen.active ? "Exit fullscreen" : "Enter fullscreen"}
               >
-                {fullscreen.active ? "Exit fullscreen" : "Fullscreen"}
+                ⛶
               </button>
             </div>
             {cue.state === "scheduled" && (
-              <p className="particles-countdown">
-                Cue in {((cue.remainingMs ?? 0) / 1000).toFixed(1)} seconds
-              </p>
+              <div className="particles-countdown-wrap">
+                <p className="particles-countdown" aria-live="polite">
+                  {((cue.remainingMs ?? 0) / 1_000).toFixed(1)}
+                </p>
+                <button type="button" className="particles-cancel" onClick={cue.cancel}>
+                  Cancel
+                </button>
+              </div>
             )}
-            {cue.state === "scheduled" && (
-              <button type="button" className="particles-cancel" onClick={cue.cancel}>
-                Cancel pending cue
-              </button>
+            {captureEnabled && (
+              <div className="particles-camera">
+                <video ref={camera.videoRef} playsInline muted aria-label="Rear camera preview" />
+                <p>{camera.ready ? "Camera participating" : (camera.error ?? "Opening camera…")}</p>
+              </div>
             )}
           </>
         )}
-
         <p className="particles-notice" role="status" aria-live="polite">
           {notice}
         </p>
-        <p className="particles-note">
-          Rehearsal transport is direct peer mesh. It is intentionally capped by practice, not by
-          wishful thinking: the 50–200 device exhibition path needs the coordinator relay tracked in
-          mesh-common issue #87.
-        </p>
       </section>
 
-      {lastShot && (
-        <aside className="particles-shot">
-          <img src={lastShot} alt="Latest local cue capture" />
-          <a href={lastShot} download="mesh-particles-local-capture.jpg">
-            Download this local frame
-          </a>
-        </aside>
-      )}
+      <section className="particles-gallery" aria-label="Shared rehearsal frames">
+        <div className="particles-gallery-heading">
+          <p>Rehearsal roll</p>
+          <span>small rooms · {MAX_SHARED_PHOTOS} photos max</span>
+        </div>
+        {displayedGallery.length ? (
+          <div className="particles-gallery-strip">
+            {displayedGallery.map((photo) => (
+              <button
+                type="button"
+                className="particles-photo"
+                key={photo.id}
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = photo.url;
+                  link.download = photo.name;
+                  link.click();
+                }}
+                aria-label={`Download ${photo.mine ? "your" : "shared"} photo ${photo.name}`}
+              >
+                <img src={photo.url} alt="Cue capture" />
+                <span>{photo.mine ? "yours" : "shared"}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="particles-gallery-empty">
+            Captured frames from opted-in phones appear here.
+          </p>
+        )}
+      </section>
+      <footer className="particles-footnote">
+        Keep the screen visible and use one burst only. Gallery sharing is intentionally limited to
+        a small rehearsal room; the 50–200 phone installation requires the dedicated relay and
+        collector path in mesh-common issue #87.
+      </footer>
     </main>
   );
 }

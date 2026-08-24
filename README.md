@@ -1,10 +1,10 @@
 # mesh-particles
 
-[![pages](https://img.shields.io/badge/live-baditaflorin.github.io%2Fmesh-particles-d7b3ff)](https://baditaflorin.github.io/mesh-particles/)
+[![pages](https://img.shields.io/badge/live-baditaflorin.github.io%2Fmesh-particles-d5e4a5)](https://baditaflorin.github.io/mesh-particles/)
 [![version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/baditaflorin/mesh-particles/blob/main/package.json)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
-> Installation rehearsal: synchronized screen light, optional torch, and local multi-angle capture.
+> Installation rehearsal: synchronized screen light, opt-in camera capture, and a small shared photo roll.
 
 **Live → https://baditaflorin.github.io/mesh-particles/**
 
@@ -26,12 +26,12 @@
 
 `mesh-particles` rehearses the visual language of a larger installation: many recycled phones held by cast hands create one sudden white-screen flash, with optional rear-camera capture and hardware torch.
 
-The rehearsal mode is a **rootless-computing** Yjs/WebRTC room. It is deliberately intended for small field tests, not as the final 200-phone topology. At 50–200 phones the same scheduled-cue protocol needs a dedicated coordinator relay; the app keeps the capture local and does not send photos through the peer mesh.
+The rehearsal mode is a **rootless-computing** Yjs/WebRTC room. It is deliberately intended for small field tests, not as the final 200-phone topology. An opted-in phone can put a compressed cue frame in the shared room so every participant receives it in the rehearsal roll. That path is bounded to 12 photos and 800 KB per photo; it is not the 50–200 phone collection path, which needs a dedicated collector relay.
 
 ### Capability truth
 
 - The screen flash works everywhere once the page is armed and visible.
-- Camera capture is a frame from an explicitly permitted rear-camera stream; it does **not** open the native camera app.
+- Camera capture is a frame from an explicitly permitted rear-camera stream; it does **not** open the native camera app. Sharing is a separate per-phone opt-in.
 - Torch is checked per device and is optional. It should never be treated as a guaranteed photo flash.
 - The single cue is not a repeated strobe. The app shows an explicit warning and always offers cancellation before it fires.
 
@@ -39,7 +39,7 @@ Read the principles → **https://baditaflorin.github.io/rootless-computing/prin
 
 ## Quickstart
 
-Open the live URL on two devices in the same room (set in ⚙ settings, or scan the room QR). Arm each device, then use **Test cue** before any camera/torch rehearsal. Enable capture only on devices that should retain a local frame.
+Open the live URL on two devices in the same room (set in ⚙ settings, or scan the room QR). Arm each device, set the **Moment in** countdown to 1–30 seconds, then use **Test light** before the camera/torch rehearsal. Enable photo participation only on devices whose operators consent; toggle **Share it with the room** if the resulting frame should appear for every participant.
 
 For local hacking:
 
@@ -93,7 +93,7 @@ bash ../mesh-common/scripts/screenshot-app.sh    # regenerate docs/screenshot.pn
 
 <!-- mesh:privacy-section:start -->
 
-The shared room carries only a small scheduled cue and ephemeral capability flags. A captured camera frame stays on the device unless its operator manually downloads or exports it. Camera and torch permissions are requested only after an explicit arming action. The room URL is access control—share it deliberately.
+The shared room carries a small scheduled cue, ephemeral capability flags, and only the compressed photo frames whose operators explicitly enabled room sharing. Camera and torch permissions are requested only after an explicit arming action. The room URL is access control—share it deliberately.
 
 See `docs/privacy.md` for the full threat model — capabilities used, what other peers in the mesh see, what the self-hosted infra sees, what stays local.
 <!-- mesh:privacy-section:end -->
