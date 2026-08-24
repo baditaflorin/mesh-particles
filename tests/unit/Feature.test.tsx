@@ -32,6 +32,24 @@ describe("Feature (component)", () => {
     expect(view.getByRole("button", { name: "Trigger moment" })).toBeInTheDocument();
   });
 
+  it("explains a disconnected shared room and offers reconnect before scheduling", async () => {
+    const provider = {
+      connected: false,
+      on: vi.fn(),
+      off: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    const room = createMockRoom({ provider: provider as never });
+    const view = render(<Feature room={room} config={config} />);
+    await act(async () => view.getByRole("button", { name: "Arm this phone" }).click());
+    await act(async () => view.getByRole("button", { name: "Trigger moment" }).click());
+    expect(view.getByText(/room is not connected yet/i)).toBeInTheDocument();
+    await act(async () => view.getByRole("button", { name: /reconnect/i }).click());
+    expect(provider.disconnect).toHaveBeenCalledOnce();
+    expect(provider.connect).toHaveBeenCalledOnce();
+  });
+
   it("opens a shared frame in a viewer with its debugging attribution", async () => {
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:remote-frame"),

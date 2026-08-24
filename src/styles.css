@@ -214,6 +214,19 @@ button {
   gap: 0.55rem;
   padding: 0 1.1rem 1rem;
 }
+.particles-reconnect {
+  display: block;
+  width: calc(100% - 2.2rem);
+  min-height: 2.35rem;
+  margin: -0.35rem 1.1rem 0.9rem;
+  border: 1px solid #e4d99a63;
+  border-radius: 0.65rem;
+  color: #ede4b5;
+  background: #3a3520;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 740;
+}
 .particles-countdown-wrap {
   display: flex;
   align-items: center;
