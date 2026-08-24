@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     // file:../mesh-common can resolve React/Yjs from its own node_modules,
     // creating duplicate instances. Dedupe forces the app's copy to win.
     resolve: {
-      dedupe: ["react", "react-dom", "yjs", "y-webrtc"],
+      dedupe: ["react", "react-dom", "yjs", "y-webrtc", "@radix-ui/react-dialog"],
     },
     build: {
       outDir: "docs",

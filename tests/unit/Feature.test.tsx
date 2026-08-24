@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { act, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, waitFor } from "@testing-library/react";
+import * as Y from "yjs";
 import { createMockRoom } from "@baditaflorin/mesh-common/testing";
 import { Feature } from "../../src/Feature";
 import { config } from "../../src/config";
@@ -30,4 +31,41 @@ describe("Feature (component)", () => {
     expect(view.getByLabelText(/this phone takes a photo/i)).not.toBeChecked();
     expect(view.getByRole("button", { name: "Trigger moment" })).toBeInTheDocument();
   });
+
+  it("opens a shared frame in a viewer with its debugging attribution", async () => {
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:remote-frame"),
+      revokeObjectURL: vi.fn(),
+    });
+    const room = createMockRoom({ peerId: "session-local", deviceId: "device-local" });
+    const manifests = room.doc.getMap("particles:photos:v1:manifests");
+    const chunks = room.doc.getMap<Y.Array<string>>("particles:photos:v1:chunks");
+    const imageChunks = new Y.Array<string>();
+    room.doc.transact(() => {
+      manifests.set("remote-frame", {
+        name: "remote.jpg",
+        mimeType: "image/jpeg",
+        size: 3,
+        chunks: 1,
+        deviceId: "device-remote",
+        by: "session-remote",
+        at: 1_700_000_000_000,
+      });
+      chunks.set("remote-frame", imageChunks);
+      imageChunks.push(["aGk="]);
+    });
+    const view = render(<Feature room={room} config={config} />);
+    const thumbnail = await waitFor(() =>
+      view.getByRole("button", { name: /view shared photo from device-remote/i }),
+    );
+    await act(async () => thumbnail.click());
+    expect(view.getByRole("dialog")).toHaveTextContent("Frame 1 of 1");
+    expect(view.getByRole("dialog")).toHaveTextContent("device-remote");
+    expect(view.getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "blob:remote-frame",
+    );
+  });
 });
+
+afterEach(() => vi.unstubAllGlobals());

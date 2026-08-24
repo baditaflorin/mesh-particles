@@ -28,6 +28,8 @@
 
 The rehearsal mode is a **rootless-computing** Yjs/WebRTC room. It is deliberately intended for small field tests, not as the final 200-phone topology. An opted-in phone can put a compressed cue frame in the shared room so every participant receives it in the rehearsal roll. That path is bounded to 12 photos and 800 KB per photo; it is not the 50–200 phone collection path, which needs a dedicated collector relay.
 
+Tap a thumbnail to open the frame viewer rather than downloading immediately. It supports previous/next controls and touch swipes, and exposes the capture time, stable per-app device ID, and ephemeral session ID for rehearsal debugging. Download remains an explicit action in that viewer.
+
 ### Capability truth
 
 - The screen flash works everywhere once the page is armed and visible.
@@ -93,7 +95,7 @@ bash ../mesh-common/scripts/screenshot-app.sh    # regenerate docs/screenshot.pn
 
 <!-- mesh:privacy-section:start -->
 
-The shared room carries a small scheduled cue, ephemeral capability flags, and only the compressed photo frames whose operators explicitly enabled room sharing. Camera and torch permissions are requested only after an explicit arming action. The room URL is access control—share it deliberately.
+The shared room carries a small scheduled cue, ephemeral capability flags, and only the compressed photo frames whose operators explicitly enabled room sharing. Each shared frame includes an anonymous per-app device ID for debugging; it persists on that browser for this app but cannot identify or correlate a person across the rest of the Mesh fleet. Camera and torch permissions are requested only after an explicit arming action. The room URL is access control—share it deliberately.
 
 See `docs/privacy.md` for the full threat model — capabilities used, what other peers in the mesh see, what the self-hosted infra sees, what stays local.
 <!-- mesh:privacy-section:end -->
