@@ -6,6 +6,7 @@ import {
   useFullscreen,
   useImageCapture,
   usePeerCapabilities,
+  useRoomLifecycle,
   useScheduledCue,
   useWakeLock,
   type MeshConfig,
@@ -90,6 +91,7 @@ export function Feature({ room, config }: Props) {
   const wakeLock = useWakeLock();
   const fullscreen = useFullscreen(stageRef);
   const capabilities = usePeerCapabilities(room);
+  const roomLifecycle = useRoomLifecycle(room);
   const photoShare = useFileShare(room, {
     mapName: "particles:photos:v1",
     maxBytes: MAX_SHARED_BYTES,
@@ -247,6 +249,18 @@ export function Feature({ room, config }: Props) {
       setNotice("Arm this phone first.");
       return;
     }
+    if (!room) {
+      setNotice(
+        "Room is still initializing. Wait for the connection before scheduling a shared cue.",
+      );
+      return;
+    }
+    if (room.provider && roomLifecycle.status !== "connected") {
+      setNotice(
+        "Room is not connected yet. Reconnect or wait until the room is online before triggering everyone.",
+      );
+      return;
+    }
     try {
       const ok = cue.scheduleIn(
         { torch: torchEnabled && torch.supported, capture, durationMs: 160 },
@@ -269,7 +283,9 @@ export function Feature({ room, config }: Props) {
   const torchReady =
     peerCapabilities.filter((peer) => peer.torch).length +
     Number(armed && torchEnabled && torch.supported);
-  const present = room ? room.peerCount + 1 : 1;
+  const sessions = room ? room.peerCount + 1 : 1;
+  const sessionNoun = sessions === 1 ? "session" : "sessions";
+  const sessionLabel = `${sessions} live ${sessionNoun}`;
   const displayedGallery = useMemo(() => gallery.slice(0, MAX_SHARED_PHOTOS), [gallery]);
   const sharedPhotoCount = photoShare.files.filter((file) => file.complete).length;
   const selectedIndex = Math.max(
@@ -291,8 +307,8 @@ export function Feature({ room, config }: Props) {
           <p className="particles-kicker">Shared light / photo moment</p>
           <h1 id="particles-title">{config.appName}</h1>
         </div>
-        <span className="particles-room" aria-label={`${present} phones present`}>
-          <b>{present}</b> present
+        <span className="particles-room" aria-label={sessionLabel}>
+          <b>{sessions}</b> {sessionNoun}
         </span>
       </header>
 
@@ -311,7 +327,7 @@ export function Feature({ room, config }: Props) {
           <>
             <div className="particles-readiness" aria-label="Room readiness">
               <span>
-                <b>{present}</b> phones present
+                <b>{sessions}</b> live {sessionNoun}
               </span>
               <span>
                 <b>{cameraReady}</b> camera-ready
@@ -391,6 +407,22 @@ export function Feature({ room, config }: Props) {
                 ⛶
               </button>
             </div>
+            {room && room.provider && roomLifecycle.status !== "connected" && (
+              <button
+                type="button"
+                className="particles-reconnect"
+                onClick={() => {
+                  const retried = roomLifecycle.reconnect();
+                  setNotice(
+                    retried
+                      ? "Reconnecting room… trigger is enabled once the signaling connection returns."
+                      : "This browser could not start a room reconnect. Check its network/VPN settings.",
+                  );
+                }}
+              >
+                {roomLifecycle.status === "joining" ? "Room joining… reconnect" : "Reconnect room"}
+              </button>
+            )}
             {cue.state === "scheduled" && (
               <div className="particles-countdown-wrap">
                 <p className="particles-countdown" aria-live="polite">
