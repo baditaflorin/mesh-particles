@@ -1,0 +1,7 @@
+{
+  "$schema": "https://baditaflorin.github.io/mesh-common/mesh-service.schema.json",
+  "id": "mesh-particles",
+  "category": "Devices & spaces",
+  "subcategory": "Shared displays & installations",
+  "useCases": ["art installations", "festivals", "photo moments", "rehearsals"]
+}
