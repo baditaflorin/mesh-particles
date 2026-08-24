@@ -148,7 +148,7 @@ button {
 }
 .particles-readiness {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   border-bottom: 1px solid #edf4d817;
 }
 .particles-readiness span {
@@ -331,6 +331,62 @@ button {
   font-size: 0.56rem;
   text-transform: uppercase;
 }
+.particles-viewer {
+  width: min(42rem, calc(100vw - 1.25rem));
+  max-height: min(46rem, calc(100dvh - 1.25rem));
+  border-color: #d5e4a54d;
+  background: #171b13;
+}
+.particles-viewer .mesh-sheet-body {
+  overflow: hidden;
+}
+.particles-viewer-frame {
+  touch-action: pan-y;
+  user-select: none;
+}
+.particles-viewer-frame > img {
+  display: block;
+  width: 100%;
+  max-height: min(55vh, 31rem);
+  border-radius: 0.65rem;
+  background: #080a06;
+  object-fit: contain;
+}
+.particles-viewer-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+}
+.particles-viewer-meta div {
+  min-width: 0;
+}
+.particles-viewer-meta dt {
+  color: #99a28c;
+  font-size: 0.63rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.particles-viewer-meta dd {
+  overflow: hidden;
+  margin: 0.15rem 0 0;
+  color: #ebedde;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.particles-download {
+  display: inline-grid;
+  min-height: 2.8rem;
+  place-items: center;
+  border-radius: 0.72rem;
+  padding: 0.5rem 0.75rem;
+  color: #172012;
+  background: #d5e4a5;
+  font-size: 0.85rem;
+  font-weight: 760;
+  text-decoration: none;
+}
 .particles-footnote {
   margin-top: 0.45rem;
   padding-bottom: 0.25rem;
@@ -356,6 +412,23 @@ button {
   }
   .particles-topbar {
     padding-bottom: 0.75rem;
+  }
+  .particles-readiness {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .particles-readiness span:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid #edf4d817;
+  }
+  .particles-readiness span:nth-child(4) {
+    border-top: 1px solid #edf4d817;
+  }
+  .particles-viewer-meta {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .particles-viewer .mesh-sheet-footer {
+    flex-wrap: wrap;
   }
 }
 @media (max-height: 700px) and (min-width: 421px) {

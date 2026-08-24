@@ -1,6 +1,6 @@
 {
   "app": "mesh-particles",
-  "completedAt": "2026-08-24T22:18:58.800Z",
+  "completedAt": "2026-08-24T22:48:15.760Z",
   "totalChecks": 16,
   "passed": 16,
   "failed": 0,
@@ -10,22 +10,22 @@
       "claim": "Identity key persists across reloads via localStorage",
       "method": "loadOrCreateIdentity called twice with same prefix; both keypairs match",
       "evidence": {
-        "pubkeyA": "ef5d3521ad675337b29e25a5ee17b5127db4d66b788a454b28e92043c0446c63",
-        "pubkeyB": "ef5d3521ad675337b29e25a5ee17b5127db4d66b788a454b28e92043c0446c63"
+        "pubkeyA": "b283b033fb127a4dfb44db2b3e9743d040a0aac76395f04d1c80d33544db4558",
+        "pubkeyB": "b283b033fb127a4dfb44db2b3e9743d040a0aac76395f04d1c80d33544db4558"
       },
       "result": "pass",
-      "ts": 1787609938687
+      "ts": 1787611695651
     },
     {
       "id": "L1.IDENTITY.uniquePerApp",
       "claim": "Each storagePrefix produces a distinct keypair (no cross-app reuse)",
       "method": "loadOrCreateIdentity with two different prefixes; private keys differ",
       "evidence": {
-        "pubkeyA": "b74add4a902f8986",
-        "pubkeyB": "18e26ba9806fbcaa"
+        "pubkeyA": "3f5145a7b80705a1",
+        "pubkeyB": "685dc5fd6abe82d4"
       },
       "result": "pass",
-      "ts": 1787609938689
+      "ts": 1787611695654
     },
     {
       "id": "L1.MODERATOR.claimSyncs",
@@ -36,36 +36,36 @@
         "ttlMs": 1800000
       },
       "result": "pass",
-      "ts": 1787609938759
+      "ts": 1787611695713
     },
     {
       "id": "L1.MODERATOR.expiredClaimIgnored",
       "claim": "A signed claim with expiresAt in the past is treated as vacant",
       "method": "Plant claim with expiresAt = now - 60s; hook reports current=null",
       "evidence": {
-        "plantedExpiresAt": 1787609878793,
-        "now": 1787609938796
+        "plantedExpiresAt": 1787611635753,
+        "now": 1787611695756
       },
       "result": "pass",
-      "ts": 1787609938796
+      "ts": 1787611695756
     },
     {
       "id": "L1.MODERATOR.forgedClaimRejected",
       "claim": "A claim with a signature not matching its embedded pubkey is treated as vacant",
       "method": "Plant {pubkey:real, sig:forger}; hook rejects and reports current=null",
       "evidence": {
-        "realPubkey": "8c4517399eba6bfa",
-        "forgerPubkey": "b61d2bafd4417714"
+        "realPubkey": "64d826095d3f7725",
+        "forgerPubkey": "16bebe1aff15b473"
       },
       "result": "pass",
-      "ts": 1787609938799
+      "ts": 1787611695760
     },
     {
       "id": "L1.MODERATOR.releaseSyncs",
       "claim": "Relinquish by the current moderator clears the slot for all peers",
       "method": "After A.relinquish() both A and B observe current=null",
       "result": "pass",
-      "ts": 1787609938792
+      "ts": 1787611695752
     },
     {
       "id": "L1.MODERATOR.signedClaim",
@@ -76,35 +76,35 @@
         "nonceLen": 32
       },
       "result": "pass",
-      "ts": 1787609938769
+      "ts": 1787611695725
     },
     {
       "id": "L1.MODERATOR.vacantDefault",
       "claim": "Fresh room reports no moderator and isMe=false",
       "method": "useModerator hook on a fresh mock room returns {current:null, isMe:false}",
       "result": "pass",
-      "ts": 1787609938738
+      "ts": 1787611695692
     },
     {
       "id": "L1.SIGN.rejectGarbage",
       "claim": "Invalid signature / pubkey inputs return false instead of crashing",
       "method": "verify({x:1}, 'not-hex', 'also-bad') and verify({x:1}, '', '') both false",
       "result": "pass",
-      "ts": 1787609938703
+      "ts": 1787611695669
     },
     {
       "id": "L1.SIGN.rejectTampered",
       "claim": "A signed payload with any byte modified fails verification",
       "method": "Sign {msg:'hello'}, then verify({msg:'HELLO'}, …) returns false",
       "result": "pass",
-      "ts": 1787609938699
+      "ts": 1787611695665
     },
     {
       "id": "L1.SIGN.rejectWrongKey",
       "claim": "A's signature does not verify under B's public key",
       "method": "Sign with kpA.priv, verify with kpB.pub returns false",
       "result": "pass",
-      "ts": 1787609938702
+      "ts": 1787611695669
     },
     {
       "id": "L1.SIGN.roundtrip",
@@ -112,30 +112,30 @@
       "method": "Ed25519 sign(payload, privkey) then verify(payload, sig, pubkey)",
       "evidence": {
         "sigLen": 128,
-        "pubkeyPrefix": "f72b32825ba1772f"
+        "pubkeyPrefix": "e76c7c028a30ec4d"
       },
       "result": "pass",
-      "ts": 1787609938695
+      "ts": 1787611695662
     },
     {
       "id": "L1.TOFU.fingerprint",
       "claim": "trustFingerprint emits a 4x2-hex grouped string for in-person verification",
       "method": "fingerprint(peerId, pubkey) matches /^xx-xx-xx-xx$/",
       "evidence": {
-        "fingerprint": "4b-5a-23-bf"
+        "fingerprint": "b8-fe-1d-5a"
       },
       "result": "pass",
-      "ts": 1787609938704
+      "ts": 1787611695671
     },
     {
       "id": "L1.TOFU.peerIdFromPubkey",
       "claim": "peerIdFromPubkey is deterministic and uses 64-bit prefix of pubkey",
       "method": "Two calls with same pubkey return the same 16-hex-char id",
       "evidence": {
-        "peerId": "80825fd738237290"
+        "peerId": "2efd9e7be68d9312"
       },
       "result": "pass",
-      "ts": 1787609938703
+      "ts": 1787611695670
     },
     {
       "id": "L1.TOFU.register",
@@ -143,22 +143,22 @@
       "method": "Verify the stored record's signature against its own pubkey",
       "evidence": {
         "peerId": "alice",
-        "pubkeyPrefix": "f7d8295ad51ac705",
+        "pubkeyPrefix": "7dac3bd234023a45",
         "sigLen": 128
       },
       "result": "pass",
-      "ts": 1787609938725
+      "ts": 1787611695684
     },
     {
       "id": "L1.TOFU.rejectImposter",
       "claim": "A forged record signed by the wrong key does not block the real peer from publishing",
       "method": "Pre-write mallory-signed alice claim; alice arrives and overwrites with her own",
       "evidence": {
-        "forgedPubkey": "8978780a018c0f5e",
-        "realPubkey": "4b4291791d7b436b"
+        "forgedPubkey": "7dd9ceb02245311f",
+        "realPubkey": "a04ea6d82915278b"
       },
       "result": "pass",
-      "ts": 1787609938736
+      "ts": 1787611695690
     }
   ]
 }

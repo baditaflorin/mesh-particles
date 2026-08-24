@@ -8,6 +8,7 @@ This app is a peer-to-peer mesh. Any data that is shared via Yjs (the CRDT) or a
 
 - All Yjs CRDT state: every item, vote, edit, claim, message — whatever the app stores in shared Y.Map / Y.Array structures.
 - Any opted-in cue frame shared from this app, up to 800 KB per image and 12 displayed frames per rehearsal roll. Every participant in the room can reconstruct and download those images.
+- The per-app stable device ID and ephemeral session ID on each shared frame. The stable ID helps a room tell which browser made a frame across a reload; it cannot correlate the browser across other Mesh apps.
 - Per-peer awareness state: ephemeral presence info (cursor, mood, ms-precision clock pings) for the duration of the connection.
 - Your peer ID, a transient WebRTC client ID. Not tied to a user account.
 

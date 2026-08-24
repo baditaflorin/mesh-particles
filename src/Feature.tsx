@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  MeshDialog,
   useFileShare,
   useFlashlight,
   useFullscreen,
@@ -13,7 +14,16 @@ import {
 
 type ParticlesCue = { torch: boolean; capture: boolean; durationMs: number };
 type Props = { room: YRoom | null; config: MeshConfig };
-type GalleryImage = { id: string; name: string; url: string; mine: boolean };
+type GalleryImage = {
+  id: string;
+  name: string;
+  url: string;
+  mine: boolean;
+  authorId: string;
+  sessionId: string;
+  capturedAt: number;
+  shared: boolean;
+};
 
 const MAX_SHARED_PHOTOS = 12;
 const MAX_SHARED_BYTES = 800 * 1024;
@@ -35,6 +45,20 @@ function cueFilename(id: string, peerId: string) {
   return `particles-${id.slice(0, 8)}-${peerId.slice(0, 12)}.jpg`;
 }
 
+function compactId(value: string) {
+  return value.length > 14 ? `${value.slice(0, 7)}…${value.slice(-5)}` : value;
+}
+
+function capturedLabel(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(timestamp);
+}
+
 /** Mobile-first, small-room rehearsal client. A 50–200 device show needs a relay. */
 export function Feature({ room, config }: Props) {
   const [armed, setArmed] = useState(false);
@@ -45,11 +69,13 @@ export function Feature({ room, config }: Props) {
   const [flashing, setFlashing] = useState(false);
   const [notice, setNotice] = useState("Arm this phone to join the rehearsal.");
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const firedCue = useRef<string | null>(null);
   const timers = useRef<number[]>([]);
   const capabilitySignature = useRef("");
   const galleryUrls = useRef(new Map<string, string>());
+  const swipeStartX = useRef<number | null>(null);
 
   useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
   useEffect(() => () => galleryUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
@@ -109,12 +135,21 @@ export function Feature({ room, config }: Props) {
           id: file.id,
           name: file.manifest.name,
           url,
-          mine: file.manifest.by === room?.peerId,
+          mine: file.manifest.deviceId
+            ? file.manifest.deviceId === room?.deviceId
+            : file.manifest.by === room?.peerId,
+          authorId: file.manifest.deviceId ?? file.manifest.by,
+          sessionId: file.manifest.by,
+          capturedAt: file.manifest.at,
+          shared: true,
         } satisfies GalleryImage;
       }),
     ).then((items) => {
       if (!active) return;
-      const next = items.filter((item): item is GalleryImage => item !== null);
+      const next = items.reduce<GalleryImage[]>((collected, item) => {
+        if (item) collected.push(item);
+        return collected;
+      }, []);
       const included = new Set(next.map((item) => item.id));
       galleryUrls.current.forEach((url, id) => {
         if (!included.has(id)) {
@@ -142,7 +177,16 @@ export function Feature({ room, config }: Props) {
       galleryUrls.current.set(id, url);
       setGallery((previous) =>
         [
-          { id, name: "Local frame", url, mine: true },
+          {
+            id,
+            name: "Local frame",
+            url,
+            mine: true,
+            authorId: room?.deviceId ?? "local",
+            sessionId: room?.peerId ?? "local",
+            capturedAt: image.capturedAt,
+            shared: false,
+          },
           ...previous.filter((photo) => photo.id !== id),
         ].slice(0, MAX_SHARED_PHOTOS),
       );
@@ -227,6 +271,17 @@ export function Feature({ room, config }: Props) {
     Number(armed && torchEnabled && torch.supported);
   const present = room ? room.peerCount + 1 : 1;
   const displayedGallery = useMemo(() => gallery.slice(0, MAX_SHARED_PHOTOS), [gallery]);
+  const sharedPhotoCount = photoShare.files.filter((file) => file.complete).length;
+  const selectedIndex = Math.max(
+    0,
+    displayedGallery.findIndex((photo) => photo.id === selectedPhotoId),
+  );
+  const selectedPhoto = selectedPhotoId ? (displayedGallery[selectedIndex] ?? null) : null;
+  const selectOffset = (offset: number) => {
+    if (!displayedGallery.length) return;
+    const next = (selectedIndex + offset + displayedGallery.length) % displayedGallery.length;
+    setSelectedPhotoId(displayedGallery[next]?.id ?? null);
+  };
 
   return (
     <main ref={stageRef} className={`particles-stage ${flashing ? "is-flashing" : ""}`}>
@@ -256,13 +311,16 @@ export function Feature({ room, config }: Props) {
           <>
             <div className="particles-readiness" aria-label="Room readiness">
               <span>
+                <b>{present}</b> phones present
+              </span>
+              <span>
                 <b>{cameraReady}</b> camera-ready
               </span>
               <span>
                 <b>{torchReady}</b> torch-ready
               </span>
               <span>
-                <b>{displayedGallery.length}</b> shared frames
+                <b>{sharedPhotoCount}</b> room photos
               </span>
             </div>
             <div className="particles-controls">
@@ -368,16 +426,11 @@ export function Feature({ room, config }: Props) {
                 type="button"
                 className="particles-photo"
                 key={photo.id}
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = photo.url;
-                  link.download = photo.name;
-                  link.click();
-                }}
-                aria-label={`Download ${photo.mine ? "your" : "shared"} photo ${photo.name}`}
+                onClick={() => setSelectedPhotoId(photo.id)}
+                aria-label={`View ${photo.mine ? "your" : "shared"} photo from ${compactId(photo.authorId)}`}
               >
                 <img src={photo.url} alt="Cue capture" />
-                <span>{photo.mine ? "yours" : "shared"}</span>
+                <span>{photo.mine ? "this device" : compactId(photo.authorId)}</span>
               </button>
             ))}
           </div>
@@ -387,6 +440,89 @@ export function Feature({ room, config }: Props) {
           </p>
         )}
       </section>
+      <MeshDialog
+        open={Boolean(selectedPhoto)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPhotoId(null);
+        }}
+        title={
+          selectedPhoto
+            ? `Frame ${selectedIndex + 1} of ${displayedGallery.length}`
+            : "Frame viewer"
+        }
+        description={
+          selectedPhoto
+            ? `${selectedPhoto.shared ? "Shared" : "Local"} · ${capturedLabel(selectedPhoto.capturedAt)}`
+            : undefined
+        }
+        className="particles-viewer"
+        footer={
+          selectedPhoto ? (
+            <>
+              <button
+                type="button"
+                className="particles-secondary"
+                onClick={() => selectOffset(-1)}
+                disabled={displayedGallery.length < 2}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="particles-secondary"
+                onClick={() => selectOffset(1)}
+                disabled={displayedGallery.length < 2}
+              >
+                Next
+              </button>
+              <a
+                className="particles-download"
+                href={selectedPhoto.url}
+                download={selectedPhoto.name}
+              >
+                Download
+              </a>
+            </>
+          ) : undefined
+        }
+      >
+        {selectedPhoto && (
+          <div
+            className="particles-viewer-frame"
+            onPointerDown={(event) => {
+              swipeStartX.current = event.clientX;
+            }}
+            onPointerUp={(event) => {
+              const startX = swipeStartX.current;
+              swipeStartX.current = null;
+              if (startX === null || Math.abs(event.clientX - startX) < 45) return;
+              selectOffset(event.clientX < startX ? 1 : -1);
+            }}
+          >
+            <img
+              src={selectedPhoto.url}
+              alt={`Cue frame from device ${compactId(selectedPhoto.authorId)}`}
+            />
+            <dl className="particles-viewer-meta">
+              <div>
+                <dt>Device</dt>
+                <dd>
+                  {compactId(selectedPhoto.authorId)}
+                  {selectedPhoto.mine ? " · this browser" : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Session</dt>
+                <dd>{compactId(selectedPhoto.sessionId)}</dd>
+              </div>
+              <div>
+                <dt>Captured</dt>
+                <dd>{capturedLabel(selectedPhoto.capturedAt)}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+      </MeshDialog>
       <footer className="particles-footnote">
         Keep the screen visible and use one burst only. Gallery sharing is intentionally limited to
         a small rehearsal room; the 50–200 phone installation requires the dedicated relay and
