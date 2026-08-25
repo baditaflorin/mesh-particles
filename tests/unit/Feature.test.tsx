@@ -9,7 +9,9 @@ describe("Feature (component)", () => {
   it("renders the installation arming flow when connected", () => {
     const room = createMockRoom();
     const view = render(<Feature room={room} config={config} />);
-    expect(view.getByRole("heading", { level: 1 })).toHaveTextContent("mesh-particles");
+    expect(view.getByRole("heading", { level: 1 })).toHaveTextContent("Particles");
+    expect(view.getByText("Synchronized light studio")).toBeInTheDocument();
+    expect(view.getByText("One shared instant")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "Arm this phone" })).toBeInTheDocument();
   });
 

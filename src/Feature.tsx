@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  MeshButton,
   MeshDialog,
+  MeshPresence,
+  MeshStatusPill,
+  MeshSurface,
   useFileShare,
   useFlashlight,
   useFullscreen,
@@ -286,6 +290,29 @@ export function Feature({ room, config }: Props) {
   const sessions = room ? room.peerCount + 1 : 1;
   const sessionNoun = sessions === 1 ? "session" : "sessions";
   const sessionLabel = `${sessions} live ${sessionNoun}`;
+  const roomIsConnecting =
+    !room || (Boolean(room.provider) && roomLifecycle.status !== "connected");
+  const roomStatus = !room
+    ? "Joining room"
+    : roomIsConnecting
+      ? roomLifecycle.status === "disconnected"
+        ? "Room offline"
+        : "Joining room"
+      : "Room live";
+  const roomStatusTone = !room
+    ? "warning"
+    : roomLifecycle.status === "disconnected"
+      ? "danger"
+      : roomIsConnecting
+        ? "warning"
+        : "live";
+  const presenceState = !room
+    ? "connecting"
+    : roomLifecycle.status === "disconnected"
+      ? "offline"
+      : roomIsConnecting
+        ? "connecting"
+        : "connected";
   const displayedGallery = useMemo(() => gallery.slice(0, MAX_SHARED_PHOTOS), [gallery]);
   const sharedPhotoCount = photoShare.files.filter((file) => file.complete).length;
   const selectedIndex = Math.max(
@@ -304,174 +331,239 @@ export function Feature({ room, config }: Props) {
       <div className="particles-flash" aria-hidden="true" />
       <header className="particles-topbar">
         <div>
-          <p className="particles-kicker">Shared light / photo moment</p>
-          <h1 id="particles-title">{config.appName}</h1>
+          <p className="particles-kicker">Synchronized light studio</p>
+          <h1 id="particles-title">{config.displayName ?? config.appName}</h1>
         </div>
-        <span className="particles-room" aria-label={sessionLabel}>
-          <b>{sessions}</b> {sessionNoun}
-        </span>
+        <div className="particles-topbar-signals">
+          <MeshStatusPill tone={roomStatusTone} dot>
+            {roomStatus}
+          </MeshStatusPill>
+          <MeshPresence
+            count={sessions}
+            label={sessionNoun}
+            state={presenceState}
+            aria-label={sessionLabel}
+          />
+        </div>
       </header>
 
-      <section className="particles-console" aria-labelledby="particles-title">
-        {!armed ? (
-          <div className="particles-arm">
-            <p>
-              A single white-screen burst, synchronized for a small rehearsal. Each phone chooses
-              whether it participates with its camera.
+      {!armed ? (
+        <MeshSurface
+          as="section"
+          tone="raised"
+          padding="lg"
+          className="particles-launch"
+          aria-labelledby="particles-title"
+        >
+          <div className="particles-launch-copy">
+            <p className="particles-launch-label">One shared instant</p>
+            <p className="particles-launch-promise">
+              Cue a white-screen burst across a small room. Each device can independently opt into
+              its camera and choose whether its frame joins the shared roll.
             </p>
-            <button type="button" className="particles-primary" onClick={() => void arm()}>
-              Arm this phone
-            </button>
           </div>
-        ) : (
-          <>
-            <div className="particles-readiness" aria-label="Room readiness">
-              <span>
-                <b>{sessions}</b> live {sessionNoun}
-              </span>
-              <span>
-                <b>{cameraReady}</b> camera-ready
-              </span>
-              <span>
-                <b>{torchReady}</b> torch-ready
-              </span>
-              <span>
-                <b>{sharedPhotoCount}</b> room photos
-              </span>
-            </div>
-            <div className="particles-controls">
-              <label className="particles-range">
-                <span>Moment in</span>
-                <output>{delaySeconds.toFixed(1)} s</output>
-                <input
-                  type="range"
-                  min="1"
-                  max="30"
-                  step="0.5"
-                  value={delaySeconds}
-                  aria-label="Moment in"
-                  onChange={(event) => setDelaySeconds(Number(event.target.value))}
-                />
-              </label>
-              <div className="particles-toggles">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={captureEnabled}
-                    onChange={(event) => setCaptureEnabled(event.target.checked)}
-                  />
-                  This phone takes a photo
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={captureEnabled && shareEnabled}
-                    disabled={!captureEnabled}
-                    onChange={(event) => setShareEnabled(event.target.checked)}
-                  />
-                  Share it with the room
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={torchEnabled}
-                    onChange={(event) => setTorchEnabled(event.target.checked)}
-                  />
-                  Use torch if available
-                </label>
-              </div>
-            </div>
-            <div className="particles-actions">
-              <button
-                type="button"
-                className="particles-secondary"
-                onClick={() => schedule(false)}
-                disabled={cue.state === "scheduled"}
-              >
-                Test light
-              </button>
-              <button
-                type="button"
-                className="particles-primary"
-                onClick={() => schedule(true)}
-                disabled={cue.state === "scheduled"}
-              >
-                Trigger moment
-              </button>
-              <button
-                type="button"
-                className="particles-icon-button"
-                onClick={() => void fullscreen.toggle()}
-                aria-label={fullscreen.active ? "Exit fullscreen" : "Enter fullscreen"}
-              >
-                ⛶
-              </button>
-            </div>
-            {room && room.provider && roomLifecycle.status !== "connected" && (
-              <button
-                type="button"
-                className="particles-reconnect"
-                onClick={() => {
-                  const retried = roomLifecycle.reconnect();
-                  setNotice(
-                    retried
-                      ? "Reconnecting room… trigger is enabled once the signaling connection returns."
-                      : "This browser could not start a room reconnect. Check its network/VPN settings.",
-                  );
-                }}
-              >
-                {roomLifecycle.status === "joining" ? "Room joining… reconnect" : "Reconnect room"}
-              </button>
-            )}
-            {cue.state === "scheduled" && (
-              <div className="particles-countdown-wrap">
-                <p className="particles-countdown" aria-live="polite">
-                  {((cue.remainingMs ?? 0) / 1_000).toFixed(1)}
-                </p>
-                <button type="button" className="particles-cancel" onClick={cue.cancel}>
-                  Cancel
-                </button>
-              </div>
-            )}
-            {captureEnabled && (
-              <div className="particles-camera">
-                <video ref={camera.videoRef} playsInline muted aria-label="Rear camera preview" />
-                <p>{camera.ready ? "Camera participating" : (camera.error ?? "Opening camera…")}</p>
-              </div>
-            )}
-          </>
-        )}
-        <p className="particles-notice" role="status" aria-live="polite">
-          {notice}
-        </p>
-      </section>
-
-      <section className="particles-gallery" aria-label="Shared rehearsal frames">
-        <div className="particles-gallery-heading">
-          <p>Rehearsal roll</p>
-          <span>small rooms · {MAX_SHARED_PHOTOS} photos max</span>
-        </div>
-        {displayedGallery.length ? (
-          <div className="particles-gallery-strip">
-            {displayedGallery.map((photo) => (
-              <button
-                type="button"
-                className="particles-photo"
-                key={photo.id}
-                onClick={() => setSelectedPhotoId(photo.id)}
-                aria-label={`View ${photo.mine ? "your" : "shared"} photo from ${compactId(photo.authorId)}`}
-              >
-                <img src={photo.url} alt="Cue capture" />
-                <span>{photo.mine ? "this device" : compactId(photo.authorId)}</span>
-              </button>
-            ))}
+          <div className="particles-cue-preview" aria-label="A three-step cue sequence">
+            <span className="particles-cue-orbit particles-cue-orbit-one" aria-hidden="true" />
+            <span className="particles-cue-orbit particles-cue-orbit-two" aria-hidden="true" />
+            <span className="particles-cue-core" aria-hidden="true" />
+            <ol className="particles-cue-steps">
+              <li>
+                <b>01</b>
+                <span>Arm</span>
+              </li>
+              <li>
+                <b>02</b>
+                <span>Set cue</span>
+              </li>
+              <li>
+                <b>03</b>
+                <span>Make light</span>
+              </li>
+            </ol>
           </div>
-        ) : (
-          <p className="particles-gallery-empty">
-            Captured frames from opted-in phones appear here.
+          <div className="particles-launch-meta">
+            <MeshPresence count={sessions} label="devices present" state={presenceState} />
+            <MeshStatusPill tone={roomStatusTone} dot>
+              {roomStatus}
+            </MeshStatusPill>
+          </div>
+          <MeshButton size="lg" fullWidth onClick={() => void arm()}>
+            Arm this phone
+          </MeshButton>
+          <p className="particles-launch-note" role="status" aria-live="polite">
+            {notice}
           </p>
-        )}
-      </section>
+        </MeshSurface>
+      ) : (
+        <MeshSurface
+          as="section"
+          tone="raised"
+          padding="none"
+          className="particles-console"
+          aria-labelledby="particles-title"
+        >
+          <div className="particles-console-intro">
+            <div>
+              <p>Live cue</p>
+              <strong>Set the room’s next flash.</strong>
+            </div>
+            <MeshStatusPill tone="live" dot>
+              Armed
+            </MeshStatusPill>
+          </div>
+          <div className="particles-readiness" aria-label="Room readiness">
+            <span>
+              <b>{sessions}</b> live {sessionNoun}
+            </span>
+            <span>
+              <b>{cameraReady}</b> camera-ready
+            </span>
+            <span>
+              <b>{torchReady}</b> torch-ready
+            </span>
+            <span>
+              <b>{sharedPhotoCount}</b> room photos
+            </span>
+          </div>
+          <div className="particles-controls">
+            <label className="particles-range">
+              <span>Moment in</span>
+              <output>{delaySeconds.toFixed(1)} s</output>
+              <input
+                type="range"
+                min="1"
+                max="30"
+                step="0.5"
+                value={delaySeconds}
+                aria-label="Moment in"
+                onChange={(event) => setDelaySeconds(Number(event.target.value))}
+              />
+            </label>
+            <div className="particles-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={captureEnabled}
+                  onChange={(event) => setCaptureEnabled(event.target.checked)}
+                />
+                This phone takes a photo
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={captureEnabled && shareEnabled}
+                  disabled={!captureEnabled}
+                  onChange={(event) => setShareEnabled(event.target.checked)}
+                />
+                Share it with the room
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={torchEnabled}
+                  onChange={(event) => setTorchEnabled(event.target.checked)}
+                />
+                Use torch if available
+              </label>
+            </div>
+          </div>
+          <div className="particles-actions">
+            <MeshButton
+              variant="secondary"
+              onClick={() => schedule(false)}
+              disabled={cue.state === "scheduled"}
+            >
+              Test light
+            </MeshButton>
+            <MeshButton onClick={() => schedule(true)} disabled={cue.state === "scheduled"}>
+              Trigger moment
+            </MeshButton>
+            <MeshButton
+              variant="quiet"
+              size="sm"
+              className="particles-fullscreen"
+              onClick={() => void fullscreen.toggle()}
+              aria-label={fullscreen.active ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {fullscreen.active ? "Exit" : "Full"}
+            </MeshButton>
+          </div>
+          {room && room.provider && roomLifecycle.status !== "connected" && (
+            <MeshButton
+              variant="secondary"
+              fullWidth
+              className="particles-reconnect"
+              onClick={() => {
+                const retried = roomLifecycle.reconnect();
+                setNotice(
+                  retried
+                    ? "Reconnecting room… trigger is enabled once the signaling connection returns."
+                    : "This browser could not start a room reconnect. Check its network/VPN settings.",
+                );
+              }}
+            >
+              {roomLifecycle.status === "joining" ? "Room joining… reconnect" : "Reconnect room"}
+            </MeshButton>
+          )}
+          {cue.state === "scheduled" && (
+            <div className="particles-countdown-wrap">
+              <p className="particles-countdown" aria-live="polite">
+                {((cue.remainingMs ?? 0) / 1_000).toFixed(1)}
+              </p>
+              <button type="button" className="particles-cancel" onClick={cue.cancel}>
+                Cancel
+              </button>
+            </div>
+          )}
+          {captureEnabled && (
+            <div className="particles-camera">
+              <video ref={camera.videoRef} playsInline muted aria-label="Rear camera preview" />
+              <div>
+                <MeshStatusPill tone={camera.ready ? "success" : "warning"} dot>
+                  {camera.ready ? "Camera participating" : "Camera preparing"}
+                </MeshStatusPill>
+                <p>
+                  {camera.ready
+                    ? "This device may capture the next cue."
+                    : (camera.error ?? "Opening camera…")}
+                </p>
+              </div>
+            </div>
+          )}
+          <p className="particles-notice" role="status" aria-live="polite">
+            {notice}
+          </p>
+        </MeshSurface>
+      )}
+
+      {(armed || displayedGallery.length > 0) && (
+        <section className="particles-gallery" aria-label="Shared rehearsal frames">
+          <div className="particles-gallery-heading">
+            <p>Rehearsal roll</p>
+            <span>small rooms · {MAX_SHARED_PHOTOS} photos max</span>
+          </div>
+          {displayedGallery.length ? (
+            <div className="particles-gallery-strip">
+              {displayedGallery.map((photo) => (
+                <button
+                  type="button"
+                  className="particles-photo"
+                  key={photo.id}
+                  onClick={() => setSelectedPhotoId(photo.id)}
+                  aria-label={`View ${photo.mine ? "your" : "shared"} photo from ${compactId(photo.authorId)}`}
+                >
+                  <img src={photo.url} alt="Cue capture" />
+                  <span>{photo.mine ? "this device" : compactId(photo.authorId)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="particles-gallery-empty">
+              Captured frames from opted-in phones appear here.
+            </p>
+          )}
+        </section>
+      )}
       <MeshDialog
         open={Boolean(selectedPhoto)}
         onOpenChange={(open) => {
@@ -555,11 +647,6 @@ export function Feature({ room, config }: Props) {
           </div>
         )}
       </MeshDialog>
-      <footer className="particles-footnote">
-        Keep the screen visible and use one burst only. Gallery sharing is intentionally limited to
-        a small rehearsal room; the 50–200 phone installation requires the dedicated relay and
-        collector path in mesh-common issue #87.
-      </footer>
     </main>
   );
 }

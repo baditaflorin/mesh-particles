@@ -4,7 +4,7 @@
 [![version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/baditaflorin/mesh-particles/blob/main/package.json)
 [![license](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
-> Installation rehearsal: synchronized screen light, opt-in camera capture, and a small shared photo roll.
+> A focused synchronized-light studio for a small rehearsal room: opt-in camera capture, live device readiness, and a shared photo roll.
 
 **Live → https://baditaflorin.github.io/mesh-particles/**
 
@@ -41,7 +41,7 @@ Read the principles → **https://baditaflorin.github.io/rootless-computing/prin
 
 ## Quickstart
 
-Open the live URL on two devices in the same room (set in ⚙ settings, or scan the room QR). Arm each device, set the **Moment in** countdown to 1–30 seconds, then use **Test light** before the camera/torch rehearsal. Enable photo participation only on devices whose operators consent; toggle **Share it with the room** if the resulting frame should appear for every participant.
+Open the live URL on two devices in the same room (set in **Settings**, or scan the room QR). Arm each device, set the **Moment in** countdown to 1–30 seconds, then use **Test light** before the camera/torch rehearsal. Enable photo participation only on devices whose operators consent; toggle **Share it with the room** if the resulting frame should appear for every participant.
 
 The readiness number is deliberately labelled **live sessions**, not phones: WebRTC awareness sees browser sessions, so one physical phone can appear more than once after a reload, reconnect, or a second browser. If the room is not connected, the app blocks a shared trigger and offers **Reconnect room** instead of pretending the cue was sent. The exact one-second minimum is supported.
 
@@ -76,12 +76,14 @@ The settings drawer lets the user override signaling and TURN endpoints. localSt
 
 If endpoints are blank or unreachable, the app falls back to STUN-only.
 
-## Version + commit on every screen
+## Stage layout + product metadata
 
-The bottom-right footer on every screen of the live app shows:
+Particles uses mesh-common’s `studio` visual profile with an explicit overlay shell layout. The shared **Invite** and **Settings** controls remain safely above the canvas, while the stage reserves its own top clearance so it still fits a mobile first viewport without a duplicate product bar.
+
+Source, support, version, and commit metadata live in **Settings → About** rather than permanently occupying the performance surface:
 
 - `source` → this repo
-- `tip ♥` → PayPal
+- `support` → PayPal
 - `vX.Y.Z · <short-sha>` — version from `package.json` plus the build-time git commit
 
 ## Build & deploy
