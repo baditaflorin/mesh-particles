@@ -2,6 +2,7 @@ import { createMeshConfig } from "@baditaflorin/mesh-common";
 
 export const config = createMeshConfig({
   appName: "mesh-particles",
+  breadcrumbs: false,
   displayName: "Particles",
   visualProfile: "studio",
   // The stage owns the first viewport. MeshShell keeps its invite/settings
