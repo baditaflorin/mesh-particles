@@ -3,6 +3,7 @@ steps:
     image: node:22
     commands:
       - git clone --depth=1 https://github.com/baditaflorin/mesh-common.git ../mesh-common
+      - npm ci --prefix ../mesh-common
       - npm ci --legacy-peer-deps
       - npm run fmt:check
       - npm run typecheck
